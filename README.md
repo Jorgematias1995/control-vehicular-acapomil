@@ -33,6 +33,8 @@ scripts/
   crear_usuarios_prueba.py    Crea los perfiles de prueba (admin, guardia, conductor)
   explorar_bd.py              Muestra columnas, llaves y filas de cada tabla (solo lectura)
   crear_bucket.py             Crea el bucket de evidencias si no existe
+tests/
+  test_reglas.py              Pruebas unitarias de la lógica (python tests/test_reglas.py)
 .streamlit/
   secrets.toml.example        Plantilla; el secrets.toml real NO se sube (.gitignore)
 requirements.txt
@@ -56,7 +58,8 @@ requirements.txt
    ```
    Pide una contraseña y agrega a `secrets.toml` los usuarios `admin`, `guardia` y `conductor`
    (Carlos Soto Ramírez, autorizado para ABCD-12 y NPQR-78), con la contraseña guardada como hash.
-5. **Ejecutar:**
+5. **Pruebas (opcional):** `python tests/test_reglas.py` (7 grupos, 42 verificaciones, sin conexión).
+6. **Ejecutar:**
    ```
    streamlit run app.py
    ```
