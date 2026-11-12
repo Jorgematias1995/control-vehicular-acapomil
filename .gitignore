@@ -1,0 +1,17 @@
+# Credenciales: NUNCA al repositorio (el repo es público)
+.streamlit/secrets.toml
+capgomez.py
+
+# Material de clase y descargas (la diapositiva 16 del PDF trae la key del profesor)
+*.pdf
+2026-11-12*
+*.xlsx
+*.csv
+estructura_bd.txt
+datos_clase12/
+
+# Entorno de Python
+.venv/
+venv/
+__pycache__/
+*.pyc

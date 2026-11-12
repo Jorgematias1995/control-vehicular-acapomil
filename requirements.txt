@@ -1,0 +1,9 @@
+streamlit>=1.40
+supabase>=2.10
+pandas>=2.2
+altair>=5
+pillow>=10
+numpy
+tzdata
+# Lectura de patentes con la cámara. Es opcional: sin easyocr la patente se escribe a mano.
+easyocr
