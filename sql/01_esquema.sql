@@ -5,7 +5,9 @@
 -- IMPORTANTE: el proyecto del profesor YA tiene estas tablas y sus datos;
 -- la app trabaja directamente sobre ellas. Este script documenta el modelo
 -- (base del DER del informe) y permite recrearlo en otro proyecto
--- (Supabase -> SQL Editor). Es re-ejecutable.
+-- (Supabase -> SQL Editor), con restricciones de integridad, RLS y las
+-- políticas de acceso del bucket. Es re-ejecutable.
+-- (La pauta llama "autorizaciones_acceso" a la tabla "autorizaciones".)
 --
 -- Relaciones:
 --   conductores (1) ──< autorizaciones >── (1) vehiculos
@@ -54,10 +56,86 @@ create table if not exists public.reportes_estado (
   foto_evidencia_url text                  -- URL pública de la foto del odómetro
 );
 
--- Storage: bucket público 'evidencias-vehiculares', máximo 800 KB por archivo.
+-- =====================================================================
+-- Restricciones de integridad adicionales
+-- La API del proyecto del curso no informa restricciones CHECK; estas reglas
+-- la aplicación ya las valida antes de escribir (modulos/reglas.py y los
+-- límites de cada campo). Al recrear la base, quedan también en PostgreSQL.
+-- (drop ... if exists + add: el script se puede ejecutar más de una vez)
+-- =====================================================================
+alter table public.conductores drop constraint if exists conductores_rut_formato;
+alter table public.conductores add constraint conductores_rut_formato
+  check (rut ~ '^[0-9]{1,2}\.[0-9]{3}\.[0-9]{3}-[0-9K]$');
+alter table public.conductores drop constraint if exists conductores_estado_valido;
+alter table public.conductores add constraint conductores_estado_valido
+  check (estado in ('Activo', 'Inactivo', 'Suspendido'));
+
+alter table public.vehiculos drop constraint if exists vehiculos_patente_formato;
+alter table public.vehiculos add constraint vehiculos_patente_formato
+  check (patente ~ '^[A-Z]{4}-[0-9]{2}$' or patente ~ '^[A-Z]{2}-[0-9]{4}$');
+alter table public.vehiculos drop constraint if exists vehiculos_anio_valido;
+alter table public.vehiculos add constraint vehiculos_anio_valido
+  check (anio between 1950 and 2100);
+alter table public.vehiculos drop constraint if exists vehiculos_km_no_negativo;
+alter table public.vehiculos add constraint vehiculos_km_no_negativo
+  check (kilometraje_actual >= 0);
+alter table public.vehiculos drop constraint if exists vehiculos_estado_valido;
+alter table public.vehiculos add constraint vehiculos_estado_valido
+  check (estado_operativo in ('Operativo', 'Requiere Mantención', 'Crítico'));
+
+-- Una sola autorización por par vehículo-conductor
+alter table public.autorizaciones drop constraint if exists autorizaciones_par_unico;
+alter table public.autorizaciones add constraint autorizaciones_par_unico
+  unique (patente, rut_conductor);
+
+alter table public.reportes_estado drop constraint if exists reportes_km_no_negativo;
+alter table public.reportes_estado add constraint reportes_km_no_negativo
+  check (kilometraje_salida >= 0);
+alter table public.reportes_estado drop constraint if exists reportes_combustible_rango;
+alter table public.reportes_estado add constraint reportes_combustible_rango
+  check (nivel_combustible between 0 and 100);
+
+
+-- =====================================================================
+-- Seguridad de las tablas (RLS)
+-- La app se conecta desde el servidor de Streamlit con la secret key
+-- (en .streamlit/secrets.toml, fuera del repositorio), que no pasa por RLS.
+-- Con RLS activado y sin políticas para anon/authenticated, nadie más puede
+-- leer ni escribir las tablas con la clave pública.
+-- =====================================================================
+alter table public.conductores     enable row level security;
+alter table public.vehiculos       enable row level security;
+alter table public.autorizaciones  enable row level security;
+alter table public.reportes_estado enable row level security;
+
+
+-- =====================================================================
+-- Storage: bucket 'evidencias-vehiculares' (máximo 800 KB, solo imágenes)
 --   odometros/<PATENTE>/<fecha>_<código>.jpg   foto del reporte del conductor
 --   garita/<fecha>__<PATENTE>__<MOVIMIENTO>__<RESULTADO>__<RUT>__<código>.jpg
 --                                              registro de garita (bitácora de accesos)
-insert into storage.buckets (id, name, public, file_size_limit)
-values ('evidencias-vehiculares', 'evidencias-vehiculares', true, 819200)
-on conflict (id) do nothing;
+-- =====================================================================
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('evidencias-vehiculares', 'evidencias-vehiculares', true, 819200,
+        array['image/jpeg', 'image/png'])
+on conflict (id) do update
+  set file_size_limit    = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+-- Políticas de acceso a las evidencias (storage.objects tiene RLS activado):
+--  * Servidor de Streamlit (secret key): sube, lista y lee sin depender de políticas.
+--  * Lectura por URL: el bucket es público, así la app muestra cada foto con su URL.
+--  * Clave pública (anon): sin políticas => no puede listar, subir, cambiar ni borrar.
+--  * Usuarios autenticados (si se usa Supabase Auth): solo leen este bucket y suben
+--    imágenes dentro de garita/ u odometros/. No hay políticas UPDATE ni DELETE:
+--    una evidencia subida no se puede modificar ni borrar desde un cliente.
+drop policy if exists "evidencias: lectura autenticados" on storage.objects;
+create policy "evidencias: lectura autenticados" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'evidencias-vehiculares');
+
+drop policy if exists "evidencias: carga autenticados" on storage.objects;
+create policy "evidencias: carga autenticados" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'evidencias-vehiculares'
+              and (storage.foldername(name))[1] in ('garita', 'odometros'));

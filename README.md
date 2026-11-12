@@ -27,7 +27,7 @@ modulos/
   ocr.py                      Lectura de patentes con EasyOCR (opcional)
   ui.py                       Hora de Chile, etiquetas de color
 sql/
-  01_esquema.sql              Modelo de las 4 tablas del proyecto del curso (DER) y bucket
+  01_esquema.sql              Modelo de las 4 tablas (DER), restricciones, RLS y políticas del bucket
   02_datos.sql                30 conductores, 15 vehículos y 18 autorizaciones
 scripts/
   crear_usuarios_prueba.py    Crea los perfiles de prueba (admin, guardia, conductor)
