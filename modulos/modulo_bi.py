@@ -161,7 +161,7 @@ def _analitica(vehiculos: pd.DataFrame, accesos: pd.DataFrame) -> None:
                         .agg(km=("kilometraje_actual", "sum"), unidades=("patente", "count")))
             grafico = alt.Chart(por_tipo).mark_bar(color="#4b5d23").encode(
                 x=alt.X("km:Q", title="Kilómetros acumulados"),
-                y=alt.Y("tipo_vehiculo:N", sort="-x", title=None),
+                y=alt.Y("tipo_vehiculo:N", sort="-x", title=None, axis=alt.Axis(labelLimit=240)),
                 tooltip=["tipo_vehiculo", "unidades", alt.Tooltip("km:Q", format=",")],
             )
         st.altair_chart(grafico)
@@ -181,8 +181,8 @@ def _analitica(vehiculos: pd.DataFrame, accesos: pd.DataFrame) -> None:
         conteo = datos.groupby(["unidad", "movimiento"], as_index=False).size()
         seleccion = alt.selection_point(fields=["movimiento"], bind="legend")
         grafico = alt.Chart(conteo).mark_bar().encode(
-            x=alt.X("size:Q", title="Registros"),
-            y=alt.Y("unidad:N", sort="-x", title=None),
+            x=alt.X("size:Q", title="Registros", axis=alt.Axis(tickMinStep=1, format="d")),
+            y=alt.Y("unidad:N", sort="-x", title=None, axis=alt.Axis(labelLimit=240)),
             color=alt.Color("movimiento:N", title="Movimiento",
                             scale=alt.Scale(domain=["ENTRADA", "SALIDA"], range=["#1a73e8", "#9334e6"])),
             opacity=alt.condition(seleccion, alt.value(1), alt.value(0.25)),
